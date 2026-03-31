@@ -1,0 +1,535 @@
+// background.js — service worker
+
+const DEFAULT_WORK  = 25 * 60;
+const DEFAULT_BREAK = 5  * 60;
+
+async function getDurations() {
+  const d = await chrome.storage.local.get(['workMinutes', 'breakMinutes']);
+  return {
+    work:  (d.workMinutes  || 25) * 60,
+    break: (d.breakMinutes || 5)  * 60
+  };
+}
+
+// State stored in chrome.storage.session for cross-popup persistence
+async function getState() {
+  const dur  = await getDurations();
+  const data = await chrome.storage.session.get(['timerState']);
+  return data.timerState || {
+    phase: 'idle',
+    remaining: dur.work,
+    startedAt: null,
+    pausedAt: null,
+    paused: false
+  };
+}
+
+async function setState(state) {
+  await chrome.storage.session.set({ timerState: state });
+  await updateIcon(state);
+}
+
+// ─── DYNAMIC ICON WITH TIMER ──────────────────────────────────────────────────
+// Renders a tomato icon + countdown arc + MM:SS text directly onto the toolbar icon
+async function updateIcon(state, overrideRemaining) {
+  const SIZE = 32;
+  try {
+    const canvas = new OffscreenCanvas(SIZE, SIZE);
+    const ctx = canvas.getContext('2d');
+    const cx = SIZE / 2, cy = SIZE / 2;
+
+    if (state.phase === 'idle') {
+      drawTomato(ctx, SIZE);
+      chrome.action.setBadgeText({ text: '' });
+      chrome.action.setTitle({ title: '🍅 Pomodoro Timer — нажми чтобы начать' });
+    } else {
+      // Use overrideRemaining if provided (from popup, most accurate),
+      // otherwise calculate from startedAt
+      const remaining = (overrideRemaining !== undefined)
+        ? overrideRemaining
+        : getRemainingSeconds(state);
+      const dur   = await getDurations();
+      const total = state.phase === 'work' ? dur.work : dur.break;
+      const fraction = remaining / total;
+
+      // Dark semi-transparent background circle
+      ctx.clearRect(0, 0, SIZE, SIZE);
+      ctx.beginPath();
+      ctx.arc(cx, cy, SIZE/2, 0, Math.PI*2);
+      ctx.fillStyle = state.phase === 'work' ? '#1a0a08' : '#081a0e';
+      ctx.fill();
+
+      // Progress arc (full circle track)
+      const trackColor = state.phase === 'work' ? 'rgba(200,60,40,0.25)' : 'rgba(40,160,80,0.25)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, SIZE/2 - 2, 0, Math.PI*2);
+      ctx.strokeStyle = trackColor;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // Draw elapsed time arc (grows clockwise from 12 o'clock as timer runs)
+      const arcColor = state.phase === 'work' ? '#e8472a' : '#34c868';
+      const elapsed_fraction = 1 - fraction;
+      const startAngle = -Math.PI / 2;
+      const endAngle = startAngle + (Math.PI * 2 * elapsed_fraction);
+      ctx.beginPath();
+      ctx.arc(cx, cy, SIZE/2 - 2, startAngle, endAngle, false);
+      ctx.strokeStyle = arcColor;
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+
+      // Small tomato in center (scaled down)
+      ctx.save();
+      const tSize = SIZE * 0.58;
+      const tOff = (SIZE - tSize) / 2;
+      ctx.translate(tOff, tOff);
+      ctx.scale(tSize / SIZE, tSize / SIZE);
+      drawTomato(ctx, SIZE);
+      ctx.restore();
+
+      // Timer text overlay: show MM:SS for work, M:SS for break
+      const mins = Math.floor(remaining / 60);
+      const secs = remaining % 60;
+      const label = state.phase === 'work'
+        ? `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`
+        : `${mins}:${String(secs).padStart(2,'0')}`;
+
+      // Badge for quick glance — minutes only (floor to match popup)
+      const badgeMins = Math.floor(remaining / 60);
+      chrome.action.setBadgeText({ text: badgeMins === 0 ? String(remaining) + 's' : String(badgeMins) });
+      chrome.action.setBadgeBackgroundColor({
+        color: state.phase === 'work' ? '#c05010' : '#27ae60'
+      });
+
+      // Tooltip on hover
+      const phaseWord = state.phase === 'work' ? 'Работа' : 'Перерыв';
+      const pausedStr = state.paused ? ' (пауза)' : '';
+      chrome.action.setTitle({ title: `🍅 ${phaseWord}${pausedStr} — осталось ${label}` });
+
+      // Paused indicator: dim overlay
+      if (state.paused) {
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.beginPath();
+        ctx.arc(cx, cy, SIZE/2, 0, Math.PI*2);
+        ctx.fill();
+        // Pause bars
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        const bw = SIZE * 0.1, bh = SIZE * 0.32;
+        ctx.fillRect(cx - bw*1.6, cy - bh/2, bw, bh);
+        ctx.fillRect(cx + bw*0.6, cy - bh/2, bw, bh);
+      }
+    }
+
+    const imageData = ctx.getImageData(0, 0, SIZE, SIZE);
+    chrome.action.setIcon({ imageData });
+
+  } catch (e) {
+    // Fallback to badge-only if OffscreenCanvas fails
+    if (state.phase === 'idle') {
+      chrome.action.setBadgeText({ text: '' });
+    } else {
+      const remaining = getRemainingSeconds(state);
+      const mins = Math.ceil(remaining / 60);
+      chrome.action.setBadgeText({ text: String(mins) });
+      chrome.action.setBadgeBackgroundColor({
+        color: state.phase === 'work' ? '#c0392b' : '#27ae60'
+      });
+    }
+  }
+}
+
+// Draw a tomato onto ctx at given size (pixel art style, clean for small sizes)
+function drawTomato(ctx, s) {
+  const cx = s / 2, cy = s / 2;
+  const r = s * 0.42;
+
+  // Body gradient
+  const grad = ctx.createRadialGradient(cx - r*0.3, cy - r*0.3, r*0.05, cx, cy, r);
+  grad.addColorStop(0, '#ff7055');
+  grad.addColorStop(0.4, '#e03020');
+  grad.addColorStop(1, '#8a1810');
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI*2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Subtle specular
+  const spec = ctx.createRadialGradient(cx - r*0.3, cy - r*0.35, 0, cx - r*0.3, cy - r*0.35, r*0.4);
+  spec.addColorStop(0, 'rgba(255,255,255,0.35)');
+  spec.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI*2);
+  ctx.fillStyle = spec;
+  ctx.fill();
+
+  // Stem
+  const sw = Math.max(1.5, s * 0.055);
+  const sh = s * 0.18;
+  ctx.fillStyle = '#2d8a2d';
+  ctx.beginPath();
+  ctx.roundRect(cx - sw/2, cy - r - sh*0.55, sw, sh, sw/2);
+  ctx.fill();
+
+  // Leaf
+  ctx.fillStyle = '#38b038';
+  ctx.beginPath();
+  ctx.ellipse(cx + r*0.22, cy - r*0.82, r*0.22, r*0.1, -0.4, 0, Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(cx - r*0.18, cy - r*0.86, r*0.16, r*0.08, 0.4, 0, Math.PI*2);
+  ctx.fill();
+}
+
+function getRemainingSeconds(state) {
+  if (state.paused || state.phase === 'idle') return state.remaining;
+  const elapsed = Math.floor((Date.now() - state.startedAt) / 1000);
+  return Math.max(0, state.remaining - elapsed);
+}
+
+// Alarm fires every minute - used only for cycle-end detection
+// Icon is always drawn from startedAt calculation (same as popup)
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name !== 'tick') return;
+
+  const state = await getState();
+  if (state.phase === 'idle' || state.paused) return;
+
+  const remaining = getRemainingSeconds(state);
+
+  if (remaining <= 0) {
+    await handleCycleEnd(state);
+  } else {
+    await updateIcon(state, remaining);
+  }
+});
+
+async function handleCycleEnd(state) {
+  const dur = await getDurations();
+
+  if (state.phase === 'work') {
+    await recordPomodoro();
+    await setState({ phase:'idle', remaining:dur.work, startedAt:null, pausedAt:null, paused:false });
+    chrome.alarms.clear('tick');
+
+    // Notify popup overlay if open
+    chrome.runtime.sendMessage({ type: 'CYCLE_DONE', cycleType: 'work' }, function() {});
+
+    // System notification — always visible, works when popup is closed
+    chrome.notifications.create('cycle-work-done', {
+      type: 'basic',
+      iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+      title: '🍅 Pomodoro done!',
+      message: "Great work! Time for a break.",
+      buttons: [{ title: '☕ Rest' }, { title: '▶ One more' }],
+      requireInteraction: true,
+      priority: 2
+    });
+
+  } else {
+    await setState({ phase:'idle', remaining:dur.work, startedAt:null, pausedAt:null, paused:false });
+    chrome.alarms.clear('tick');
+
+    chrome.runtime.sendMessage({ type: 'CYCLE_DONE', cycleType: 'break' }, function() {});
+
+    chrome.notifications.create('cycle-break-done', {
+      type: 'basic',
+      iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+      title: '⏰ Break over!',
+      message: 'Ready for the next cycle?',
+      buttons: [{ title: '▶ Start cycle' }, { title: '☕ Rest more' }],
+      requireInteraction: true,
+      priority: 2
+    });
+  }
+}
+
+// Handle notification button clicks
+chrome.notifications.onButtonClicked.addListener(async function(notifId, btnIdx) {
+  const dur = await getDurations();
+  chrome.notifications.clear(notifId);
+
+  if (notifId === 'cycle-work-done') {
+    if (btnIdx === 0) {
+      // Rest — start break
+      await setState({ phase:'break', remaining:dur.break, startedAt:Date.now(), pausedAt:null, paused:false });
+      chrome.alarms.create('tick', { periodInMinutes: 1 });
+    } else {
+      // One more — start work
+      await setState({ phase:'work', remaining:dur.work, startedAt:Date.now(), pausedAt:null, paused:false });
+      chrome.alarms.create('tick', { periodInMinutes: 1 });
+    }
+  }
+
+  if (notifId === 'cycle-break-done') {
+    if (btnIdx === 0) {
+      // Start cycle
+      await setState({ phase:'work', remaining:dur.work, startedAt:Date.now(), pausedAt:null, paused:false });
+      chrome.alarms.create('tick', { periodInMinutes: 1 });
+    } else {
+      // Rest more — another break
+      await setState({ phase:'break', remaining:dur.break, startedAt:Date.now(), pausedAt:null, paused:false });
+      chrome.alarms.create('tick', { periodInMinutes: 1 });
+    }
+  }
+});
+
+// Close notification if popup opened (user saw overlay)
+chrome.notifications.onClicked.addListener(function(notifId) {
+  chrome.notifications.clear(notifId);
+});
+
+async function recordPomodoro() {
+  const now   = new Date();
+  const today = now.toISOString().split('T')[0]; // YYYY-MM-DD
+  const ts    = now.getTime(); // unix ms
+
+  const data    = await chrome.storage.local.get(['history', 'timestamps']);
+  const history = data.history    || {};
+  const stamps  = data.timestamps || [];
+
+  history[today] = (history[today] || 0) + 1;
+  stamps.push(ts);
+
+  await chrome.storage.local.set({ history, timestamps: stamps });
+
+  // Sync to GitHub Gist if token is set
+  syncToGist(history);
+}
+
+async function syncToGist(history) {
+  const data = await chrome.storage.local.get(['githubToken', 'gistId']);
+  const token = data.githubToken;
+  const gistId = data.gistId;
+  if (!token) return;
+
+  const body = {
+    description: 'Pomodoro Timer History',
+    files: {
+      'pomodoro-history.json': {
+        content: JSON.stringify(history, null, 2)
+      }
+    }
+  };
+
+  try {
+    if (gistId) {
+      await fetch(`https://api.github.com/gists/${gistId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `token ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      });
+    } else {
+      body.public = false;
+      const resp = await fetch('https://api.github.com/gists', {
+        method: 'POST',
+        headers: {
+          'Authorization': `token ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      });
+      const json = await resp.json();
+      if (json.id) {
+        await chrome.storage.local.set({ gistId: json.id });
+      }
+    }
+  } catch (e) {
+    console.error('Gist sync failed', e);
+  }
+}
+
+// Listen for messages from popup
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  (async () => {
+    if (msg.type === 'GET_STATE') {
+      const state = await getState();
+      const remaining = getRemainingSeconds(state);
+      sendResponse({ ...state, remaining });
+    }
+
+    if (msg.type === 'START') {
+      const state = await getState();
+      if (state.phase === 'idle') {
+        const dur = await getDurations();
+        const newState = {
+          phase: 'work',
+          remaining: dur.work,
+          startedAt: Date.now(),
+          pausedAt: null,
+          paused: false
+        };
+        await setState(newState);
+        chrome.alarms.create('tick', { periodInMinutes: 1 });
+        sendResponse({ ok: true });
+      }
+    }
+
+    if (msg.type === 'START_BREAK') {
+      const dur = await getDurations();
+      const newState = {
+        phase: 'break',
+        remaining: dur.break,
+        startedAt: Date.now(),
+        pausedAt: null,
+        paused: false
+      };
+      await setState(newState);
+      chrome.alarms.create('tick', { periodInMinutes: 1 });
+      sendResponse({ ok: true });
+    }
+
+    if (msg.type === 'PAUSE') {
+      const state = await getState();
+      if (!state.paused && state.phase !== 'idle') {
+        // Use remaining from popup if provided (most accurate, avoids async race)
+        const remaining = (msg.remaining !== undefined) ? msg.remaining : getRemainingSeconds(state);
+        const newState = { ...state, paused: true, remaining, pausedAt: Date.now() };
+        await setState(newState);
+        sendResponse({ ok: true });
+      }
+    }
+
+    if (msg.type === 'RESUME') {
+      const state = await getState();
+      if (state.paused) {
+        const newState = {
+          ...state,
+          paused: false,
+          startedAt: Date.now(),
+          pausedAt: null
+        };
+        await setState(newState);
+        sendResponse({ ok: true });
+      }
+    }
+
+    if (msg.type === 'RESET') {
+      chrome.alarms.clear('tick');
+      const dur = await getDurations();
+      const newState = {
+        phase: 'idle',
+        remaining: dur.work,
+        startedAt: null,
+        pausedAt: null,
+        paused: false
+      };
+      await setState(newState);
+      sendResponse({ ok: true });
+    }
+
+    if (msg.type === 'GET_HISTORY') {
+      const data = await chrome.storage.local.get(['history']);
+      sendResponse({ history: data.history || {} });
+    }
+
+    if (msg.type === 'GET_TIMESTAMPS') {
+      const data = await chrome.storage.local.get(['timestamps']);
+      sendResponse({ timestamps: data.timestamps || [] });
+    }
+
+    if (msg.type === 'UPDATE_ICON') {
+      const state = await getState();
+      if (state.phase !== 'idle') {
+        await updateIcon(state, msg.remaining);
+      }
+      sendResponse({ ok: true });
+    }
+
+    if (msg.type === 'FORCE_CYCLE_END') {
+      const state = await getState();
+      // Only act if timer is actually running and at zero
+      if (state.phase !== 'idle' && !state.paused) {
+        const remaining = getRemainingSeconds(state);
+        if (remaining <= 0) {
+          await handleCycleEnd(state);
+        }
+      }
+      sendResponse({ ok: true });
+    }
+
+    if (msg.type === 'SAVE_TOKEN') {
+      await chrome.storage.local.set({ githubToken: msg.token });
+      // Load history from gist if gistId exists
+      await loadFromGist(msg.token);
+      sendResponse({ ok: true });
+    }
+
+    if (msg.type === 'LOAD_GIST') {
+      const data = await chrome.storage.local.get(['githubToken']);
+      if (data.githubToken) {
+        await loadFromGist(data.githubToken);
+      }
+      sendResponse({ ok: true });
+    }
+
+    if (msg.type === 'GET_SETTINGS') {
+      const data = await chrome.storage.local.get(['githubToken', 'gistId', 'workMinutes', 'breakMinutes']);
+      sendResponse({
+        token:        data.githubToken  || '',
+        gistId:       data.gistId       || '',
+        workMinutes:  data.workMinutes  || 25,
+        breakMinutes: data.breakMinutes || 5
+      });
+    }
+
+    if (msg.type === 'SAVE_DURATIONS') {
+      await chrome.storage.local.set({
+        workMinutes:  msg.workMinutes,
+        breakMinutes: msg.breakMinutes
+      });
+      // If timer is idle, update its remaining to reflect new work duration
+      const state = await getState();
+      if (state.phase === 'idle') {
+        const newState = { ...state, remaining: msg.workMinutes * 60 };
+        await setState(newState);
+      }
+      sendResponse({ ok: true });
+    }
+  })();
+  return true; // async response
+});
+
+async function loadFromGist(token) {
+  try {
+    // Find our gist
+    const resp = await fetch('https://api.github.com/gists', {
+      headers: { 'Authorization': `token ${token}` }
+    });
+    const gists = await resp.json();
+    const ours = gists.find(g => g.files && g.files['pomodoro-history.json']);
+    if (!ours) return;
+
+    await chrome.storage.local.set({ gistId: ours.id });
+
+    const gistResp = await fetch(`https://api.github.com/gists/${ours.id}`, {
+      headers: { 'Authorization': `token ${token}` }
+    });
+    const gistData = await gistResp.json();
+    const content = gistData.files['pomodoro-history.json'].content;
+    const history = JSON.parse(content);
+    await chrome.storage.local.set({ history });
+  } catch (e) {
+    console.error('Load from gist failed', e);
+  }
+}
+
+// Listen for commands from notify window via storage
+chrome.storage.onChanged.addListener(async function(changes, area) {
+  if (area !== 'local' || !changes.pendingCmd) return;
+  const cmd = changes.pendingCmd.newValue;
+  if (!cmd) return;
+  // Clear command immediately
+  await chrome.storage.local.remove('pendingCmd');
+  const dur = await getDurations();
+  if (cmd === 'START') {
+    await setState({ phase:'work', remaining:dur.work, startedAt:Date.now(), pausedAt:null, paused:false });
+    chrome.alarms.create('tick', { periodInMinutes: 1 });
+  } else if (cmd === 'START_BREAK') {
+    await setState({ phase:'break', remaining:dur.break, startedAt:Date.now(), pausedAt:null, paused:false });
+    chrome.alarms.create('tick', { periodInMinutes: 1 });
+  }
+});
