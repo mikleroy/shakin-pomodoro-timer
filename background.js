@@ -129,9 +129,9 @@ async function updateIcon(state, overrideRemaining) {
     if (state.phase === 'idle') {
       chrome.action.setBadgeText({ text: '' });
     } else {
-      const remaining = getRemainingSeconds(state);
-      const mins = Math.ceil(remaining / 60);
-      chrome.action.setBadgeText({ text: String(mins) });
+      const remaining = (overrideRemaining !== undefined) ? overrideRemaining : getRemainingSeconds(state);
+      const mins = Math.floor(remaining / 60);
+      chrome.action.setBadgeText({ text: mins === 0 ? String(remaining) + 's' : String(mins) });
       chrome.action.setBadgeBackgroundColor({
         color: state.phase === 'work' ? '#c0392b' : '#27ae60'
       });
@@ -187,8 +187,11 @@ function getRemainingSeconds(state) {
   return Math.max(0, state.remaining - elapsed);
 }
 
-// Alarm fires every minute - used only for cycle-end detection
-// Icon is always drawn from startedAt calculation (same as popup)
+// Timestamp of last icon update triggered by the popup (via UPDATE_ICON message).
+// Used to prevent the alarm from overwriting the popup's fresher value.
+let lastPopupIconUpdate = 0;
+
+// Alarm fires every minute — used for cycle-end detection and icon refresh when popup is closed.
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name !== 'tick') return;
 
@@ -200,7 +203,12 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (remaining <= 0) {
     await handleCycleEnd(state);
   } else {
-    await updateIcon(state, remaining);
+    // Only update icon from alarm when popup is not actively doing so.
+    // If popup sent UPDATE_ICON within the last 1.5 s, it will handle the icon itself —
+    // writing from the alarm here would race against the popup's more accurate value.
+    if (Date.now() - lastPopupIconUpdate > 1500) {
+      await updateIcon(state, remaining);
+    }
   }
 });
 
@@ -212,8 +220,16 @@ async function handleCycleEnd(state) {
     await setState({ phase:'idle', remaining:dur.work, startedAt:null, pausedAt:null, paused:false });
     chrome.alarms.clear('tick');
 
-    // Notify popup overlay if open
-    chrome.runtime.sendMessage({ type: 'CYCLE_DONE', cycleType: 'work' }, function() {});
+    // Alert badge — persists until popup is opened
+    chrome.action.setBadgeText({ text: '!' });
+    chrome.action.setBadgeBackgroundColor({ color: '#c05010' });
+
+    // Save pending notification so popup can show overlay even if it was closed
+    await chrome.storage.local.set({ pendingNotify: 'work' });
+    // Notify popup overlay if open; if popup is closed — play sound via offscreen
+    chrome.runtime.sendMessage({ type: 'CYCLE_DONE', cycleType: 'work' }, function() {
+      if (chrome.runtime.lastError) playSound(true);
+    });
 
     // System notification — always visible, works when popup is closed
     chrome.notifications.create('cycle-work-done', {
@@ -230,7 +246,14 @@ async function handleCycleEnd(state) {
     await setState({ phase:'idle', remaining:dur.work, startedAt:null, pausedAt:null, paused:false });
     chrome.alarms.clear('tick');
 
-    chrome.runtime.sendMessage({ type: 'CYCLE_DONE', cycleType: 'break' }, function() {});
+    // Alert badge
+    chrome.action.setBadgeText({ text: '!' });
+    chrome.action.setBadgeBackgroundColor({ color: '#27ae60' });
+
+    await chrome.storage.local.set({ pendingNotify: 'break' });
+    chrome.runtime.sendMessage({ type: 'CYCLE_DONE', cycleType: 'break' }, function() {
+      if (chrome.runtime.lastError) playSound(false);
+    });
 
     chrome.notifications.create('cycle-break-done', {
       type: 'basic',
@@ -244,10 +267,34 @@ async function handleCycleEnd(state) {
   }
 }
 
+async function playSound(isWork) {
+  try {
+    const s = await chrome.storage.local.get(['soundEnabled', 'soundPreset', 'soundVolume']);
+    if (s.soundEnabled === false) return;
+    const preset = s.soundPreset  || 'classic';
+    const volume = s.soundVolume  != null ? s.soundVolume : 100;
+    const exists = await chrome.offscreen.hasDocument();
+    if (exists) {
+      chrome.runtime.sendMessage({ type: 'PLAY_SOUND', work: isWork, preset, volume }, function() { void chrome.runtime.lastError; });
+    } else {
+      const params = new URLSearchParams({ work: isWork ? '1' : '0', preset, volume });
+      await chrome.offscreen.createDocument({
+        url: chrome.runtime.getURL('offscreen.html') + '?' + params.toString(),
+        reasons: ['AUDIO_PLAYBACK'],
+        justification: 'Play cycle completion sound'
+      });
+    }
+  } catch (e) {
+    // Sound is non-critical — ignore errors
+  }
+}
+
 // Handle notification button clicks
 chrome.notifications.onButtonClicked.addListener(async function(notifId, btnIdx) {
   const dur = await getDurations();
   chrome.notifications.clear(notifId);
+  chrome.storage.local.remove('pendingNotify');
+  chrome.action.setBadgeText({ text: '' });
 
   if (notifId === 'cycle-work-done') {
     if (btnIdx === 0) {
@@ -292,63 +339,14 @@ async function recordPomodoro() {
   stamps.push(ts);
 
   await chrome.storage.local.set({ history, timestamps: stamps });
-
-  // Sync to GitHub Gist if token is set
-  syncToGist(history);
-}
-
-async function syncToGist(history) {
-  const data = await chrome.storage.local.get(['githubToken', 'gistId']);
-  const token = data.githubToken;
-  const gistId = data.gistId;
-  if (!token) return;
-
-  const body = {
-    description: 'Pomodoro Timer History',
-    files: {
-      'pomodoro-history.json': {
-        content: JSON.stringify(history, null, 2)
-      }
-    }
-  };
-
-  try {
-    if (gistId) {
-      await fetch(`https://api.github.com/gists/${gistId}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `token ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-      });
-    } else {
-      body.public = false;
-      const resp = await fetch('https://api.github.com/gists', {
-        method: 'POST',
-        headers: {
-          'Authorization': `token ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-      });
-      const json = await resp.json();
-      if (json.id) {
-        await chrome.storage.local.set({ gistId: json.id });
-      }
-    }
-  } catch (e) {
-    console.error('Gist sync failed', e);
-  }
 }
 
 // Listen for messages from popup
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   (async () => {
     if (msg.type === 'GET_STATE') {
       const state = await getState();
-      const remaining = getRemainingSeconds(state);
-      sendResponse({ ...state, remaining });
+      sendResponse(state);
     }
 
     if (msg.type === 'START') {
@@ -365,6 +363,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         await setState(newState);
         chrome.alarms.create('tick', { periodInMinutes: 1 });
         sendResponse({ ok: true });
+      } else {
+        sendResponse({ ok: false });
       }
     }
 
@@ -390,6 +390,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const newState = { ...state, paused: true, remaining, pausedAt: Date.now() };
         await setState(newState);
         sendResponse({ ok: true });
+      } else {
+        sendResponse({ ok: false });
       }
     }
 
@@ -404,6 +406,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         };
         await setState(newState);
         sendResponse({ ok: true });
+      } else {
+        sendResponse({ ok: false });
       }
     }
 
@@ -432,6 +436,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 
     if (msg.type === 'UPDATE_ICON') {
+      lastPopupIconUpdate = Date.now();
       const state = await getState();
       if (state.phase !== 'idle') {
         await updateIcon(state, msg.remaining);
@@ -451,26 +456,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse({ ok: true });
     }
 
-    if (msg.type === 'SAVE_TOKEN') {
-      await chrome.storage.local.set({ githubToken: msg.token });
-      // Load history from gist if gistId exists
-      await loadFromGist(msg.token);
-      sendResponse({ ok: true });
-    }
-
-    if (msg.type === 'LOAD_GIST') {
-      const data = await chrome.storage.local.get(['githubToken']);
-      if (data.githubToken) {
-        await loadFromGist(data.githubToken);
-      }
-      sendResponse({ ok: true });
-    }
-
     if (msg.type === 'GET_SETTINGS') {
-      const data = await chrome.storage.local.get(['githubToken', 'gistId', 'workMinutes', 'breakMinutes']);
+      const data = await chrome.storage.local.get(['workMinutes', 'breakMinutes']);
       sendResponse({
-        token:        data.githubToken  || '',
-        gistId:       data.gistId       || '',
         workMinutes:  data.workMinutes  || 25,
         breakMinutes: data.breakMinutes || 5
       });
@@ -489,33 +477,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
       sendResponse({ ok: true });
     }
-  })();
+  })().catch(() => { try { sendResponse({ ok: false }); } catch(e) {} });
   return true; // async response
 });
 
-async function loadFromGist(token) {
-  try {
-    // Find our gist
-    const resp = await fetch('https://api.github.com/gists', {
-      headers: { 'Authorization': `token ${token}` }
-    });
-    const gists = await resp.json();
-    const ours = gists.find(g => g.files && g.files['pomodoro-history.json']);
-    if (!ours) return;
 
-    await chrome.storage.local.set({ gistId: ours.id });
-
-    const gistResp = await fetch(`https://api.github.com/gists/${ours.id}`, {
-      headers: { 'Authorization': `token ${token}` }
-    });
-    const gistData = await gistResp.json();
-    const content = gistData.files['pomodoro-history.json'].content;
-    const history = JSON.parse(content);
-    await chrome.storage.local.set({ history });
-  } catch (e) {
-    console.error('Load from gist failed', e);
-  }
-}
+// Clear stale notification state on browser/extension startup
+chrome.runtime.onStartup.addListener(function() {
+  chrome.storage.local.remove(['pendingNotify', 'pendingCmd']);
+  chrome.action.setBadgeText({ text: '' });
+});
 
 // Listen for commands from notify window via storage
 chrome.storage.onChanged.addListener(async function(changes, area) {

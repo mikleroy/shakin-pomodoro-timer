@@ -87,17 +87,14 @@ var LANGS = {
     calendar_heading: 'Calendar',
     analytics_title: 'activity by weekday, last 365 days (avg)',
     year_nav_sync: '↓ sync',
+    color_scheme: 'Color scheme',
     settings_theme: 'Appearance', theme_dark: 'Dark', theme_light: 'Light',
     settings_duration: 'Cycle Duration',
     work_cycle: '🍅 Work cycle', break_cycle: '☕ Break',
     btn_apply: 'Apply',
-    settings_storage: 'Where to store history',
-    storage_file: '💾 File', storage_gist: '☁ GitHub Gist',
+    settings_storage: 'Export / Import history',
     hint_file: 'History is stored in the browser. Please save backups regularly.',
     btn_save_file: 'Save file', btn_load_file: 'Load file',
-    token_label: 'Personal Access Token',
-    token_hint: 'Create a token at <a href="https://github.com/settings/tokens/new" target="_blank">github.com/settings/tokens</a> and check the <strong>gist</strong> option.',
-    btn_save_sync: 'Save & Sync',
     settings_export: 'Export / Import',
     btn_export: 'Export JSON', btn_import: 'Import JSON',
     settings_lang: 'Language',
@@ -111,6 +108,11 @@ var LANGS = {
     test_lbl: '🧪 test', test_add: '+1 today', test_fill: '📅 4 mo.', test_end: '⏱ end', test_clear: '✕',
     scheme_green: 'green', scheme_orange: 'orange', scheme_red: 'red', scheme_ocean: 'ocean',
     theme_dark: 'Dark', theme_light: 'Light',
+    settings_sound: 'Sound',
+    sound_enabled: 'sound notification',
+    sound_preset: 'preset', sound_volume: 'volume',
+    btn_preview_sound: '▶ test',
+    preset_classic: 'Classic', preset_bell: 'Bell', preset_blip: 'Blip', preset_chime: 'Chime', preset_drop: 'Drop',
     wd_short: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
     wd_full: ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],
     months: ['January','February','March','April','May','June','July','August','September','October','November','December'],
@@ -132,13 +134,9 @@ var LANGS = {
     settings_duration: 'Длительность циклов',
     work_cycle: '🍅 Рабочий цикл', break_cycle: '☕ Перерыв',
     btn_apply: 'Применить',
-    settings_storage: 'Где хранить историю',
-    storage_file: '💾 Файл', storage_gist: '☁ GitHub Gist',
+    settings_storage: 'Экспорт / импорт истории',
     hint_file: 'История хранится в браузере. Сохраняйте резервные копии вручную.',
     btn_save_file: 'Сохранить файл', btn_load_file: 'Загрузить файл',
-    token_label: 'Personal Access Token',
-    token_hint: 'Создай токен на <a href="https://github.com/settings/tokens/new" target="_blank">github.com/settings/tokens</a> и отметь там в опциях галочку <strong>gist</strong>.',
-    btn_save_sync: 'Сохранить и синхронизировать',
     settings_export: 'Экспорт / импорт',
     btn_export: 'Экспорт JSON', btn_import: 'Импорт JSON',
     settings_lang: 'Язык',
@@ -152,6 +150,11 @@ var LANGS = {
     test_lbl: '🧪 тест', test_add: '+1 сегодня', test_fill: '📅 4 мес.', test_end: '⏱ конец', test_clear: '✕',
     scheme_green: 'зелёная', scheme_orange: 'оранжевая', scheme_red: 'красная', scheme_ocean: 'океан',
     theme_dark: 'Тёмная', theme_light: 'Светлая',
+    settings_sound: 'Звук',
+    sound_enabled: 'звуковое уведомление',
+    sound_preset: 'пресет', sound_volume: 'громкость',
+    btn_preview_sound: '▶ тест',
+    preset_classic: 'Классик', preset_bell: 'Колокол', preset_blip: 'Бип', preset_chime: 'Перезвон', preset_drop: 'Нота',
     wd_short: ['пн','вт','ср','чт','пт','сб','вс'],
     wd_full: ['понедельник','вторник','среда','четверг','пятница','суббота','воскресенье'],
     months: ['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'],
@@ -177,7 +180,7 @@ function applyLang() {
   });
   // Timer panel static labels
   var el;
-  el = document.querySelector('.scheme-section-label'); if (el) el.textContent = t('color_scheme');
+  // color_scheme title now uses data-i18n and is handled by the loop below
   el = document.getElementById('calendar-heading-el'); if (el) el.textContent = t('calendar_heading');
   el = document.getElementById('analytics-title-el');  if (el) el.textContent = t('analytics_title');
   // Legend
@@ -204,8 +207,8 @@ function applyLang() {
   // Re-render calendar if history panel open (updates month names)
   if (document.getElementById('panel-history').classList.contains('active')) renderHistory();
   // Settings
-  document.querySelectorAll('.settings-title').forEach(function(el3, idx) {
-    var keys = ['settings_theme','settings_duration','settings_storage','settings_lang'];
+  document.querySelectorAll('.settings-title:not([data-i18n])').forEach(function(el3, idx) {
+    var keys = ['settings_theme','settings_duration'];
     if (keys[idx]) el3.textContent = t(keys[idx]);
   });
   el = document.getElementById('theme-dark-lbl');  if (el) el.childNodes[el.childNodes.length-1].textContent = ' ' + t('theme_dark');
@@ -213,11 +216,13 @@ function applyLang() {
   el = document.querySelector('#storage-file .settings-hint'); if (el) el.textContent = t('hint_file');
   el = document.getElementById('btn-export-file');  if (el) el.textContent = t('btn_save_file');
   el = document.getElementById('btn-import-file2'); if (el) el.textContent = t('btn_load_file');
-  el = document.querySelector('.settings-label');   if (el) el.textContent = t('token_label');
   el = document.getElementById('btn-save-durations'); if (el && !el.classList.contains('saved')) el.textContent = t('btn_apply');
-  el = document.querySelector('.dur-row:first-of-type .dur-label'); if (el) el.textContent = t('work_cycle');
-  el = document.querySelector('.dur-row:last-of-type .dur-label');  if (el) el.textContent = t('break_cycle');
-  el = document.querySelector('.author-footer'); if (el) el.innerHTML = t('made_by') + ' <a href="https://shakin.ru" target="_blank">Mike Shakin</a>';
+  var durSection = document.querySelector('#panel-settings .settings-section:has(#work-slider)');
+  if (durSection) {
+    var durRows = durSection.querySelectorAll('.dur-row');
+    if (durRows[0]) durRows[0].querySelector('.dur-label').textContent = t('work_cycle');
+    if (durRows[1]) durRows[1].querySelector('.dur-label').textContent = t('break_cycle');
+  }
   // Invert label
   el = document.querySelector('.invert-label'); if (el) el.textContent = t('invert_lbl');
   // Test bar
@@ -445,14 +450,156 @@ document.getElementById('btn-month-next').addEventListener('click', function() {
 
 // Wire sync
 
-// Wire test buttons
-document.getElementById('btn-test-add').addEventListener('click', function() { addTestCycles(1); });
-document.getElementById('btn-test-fill').addEventListener('click', function() { fillTestHistory(); });
-document.getElementById('btn-test-clear').addEventListener('click', function() { clearTestCycles(); });
-document.getElementById('btn-test-end').addEventListener('click', function() { showCycleNotify('work'); });
+
+// ─── SOUND SETTING ────────────────────────────────────────────────────────────
+var soundEnabled = true;
+var soundPreset  = 'classic';
+var soundVolume  = 100; // 0–100
+
+function soundTone(ctx, type, freq, t0, duration, vol) {
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.type = type;
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(vol, t0);
+  gain.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
+  osc.start(t0);
+  osc.stop(t0 + duration);
+}
+
+var SOUND_PRESETS = {
+  classic: function(ctx, isWork, vol) {
+    var t = ctx.currentTime;
+    if (isWork) {
+      soundTone(ctx, 'sine', 660, t,        0.25, 0.25 * vol);
+      soundTone(ctx, 'sine', 880, t + 0.30, 0.35, 0.25 * vol);
+    } else {
+      soundTone(ctx, 'sine', 528, t, 0.45, 0.20 * vol);
+    }
+  },
+  bell: function(ctx, isWork, vol) {
+    var t = ctx.currentTime;
+    if (isWork) {
+      soundTone(ctx, 'triangle', 880,  t, 1.2, 0.30 * vol);
+      soundTone(ctx, 'triangle', 1760, t, 0.4, 0.10 * vol);
+    } else {
+      soundTone(ctx, 'triangle', 660, t, 1.5, 0.28 * vol);
+    }
+  },
+  blip: function(ctx, isWork, vol) {
+    var t = ctx.currentTime;
+    if (isWork) {
+      soundTone(ctx, 'square', 900,  t,        0.07, 0.18 * vol);
+      soundTone(ctx, 'square', 1200, t + 0.12, 0.07, 0.18 * vol);
+    } else {
+      soundTone(ctx, 'square', 600, t, 0.12, 0.16 * vol);
+    }
+  },
+  chime: function(ctx, isWork, vol) {
+    var t = ctx.currentTime;
+    if (isWork) {
+      soundTone(ctx, 'sine', 523, t, 0.6, 0.20 * vol);
+      soundTone(ctx, 'sine', 659, t, 0.6, 0.16 * vol);
+      soundTone(ctx, 'sine', 784, t, 0.6, 0.12 * vol);
+    } else {
+      soundTone(ctx, 'sine', 392, t, 0.7, 0.20 * vol);
+      soundTone(ctx, 'sine', 494, t, 0.7, 0.16 * vol);
+      soundTone(ctx, 'sine', 587, t, 0.7, 0.12 * vol);
+    }
+  },
+  drop: function(ctx, isWork, vol) {
+    var t = ctx.currentTime;
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    if (isWork) {
+      osc.frequency.setValueAtTime(880, t);
+      osc.frequency.linearRampToValueAtTime(440, t + 0.5);
+    } else {
+      osc.frequency.setValueAtTime(440, t);
+      osc.frequency.linearRampToValueAtTime(660, t + 0.4);
+    }
+    gain.gain.setValueAtTime(0.28 * vol, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+    osc.start(t);
+    osc.stop(t + 0.7);
+  }
+};
+
+function updateSoundOptionsVisibility() {
+  var opts = document.getElementById('sound-options');
+  if (opts) opts.style.display = soundEnabled ? '' : 'none';
+}
+
+function loadSoundSettings() {
+  chrome.storage.local.get(['soundEnabled', 'soundPreset', 'soundVolume'], function(r) {
+    soundEnabled = r.soundEnabled !== false;
+    soundPreset  = r.soundPreset  || 'classic';
+    soundVolume  = r.soundVolume  != null ? r.soundVolume : 100;
+
+    var cb = document.getElementById('sound-enabled');
+    if (cb) cb.checked = soundEnabled;
+
+    var radio = document.getElementById('preset-' + soundPreset);
+    if (radio) radio.checked = true;
+
+    var slider = document.getElementById('vol-slider');
+    var val    = document.getElementById('vol-val');
+    if (slider) slider.value = soundVolume;
+    if (val)    val.textContent = soundVolume + '%';
+
+    updateSoundOptionsVisibility();
+  });
+}
+
+document.getElementById('sound-enabled').addEventListener('change', function() {
+  soundEnabled = this.checked;
+  chrome.storage.local.set({ soundEnabled: soundEnabled });
+  updateSoundOptionsVisibility();
+});
+
+document.querySelectorAll('input[name="soundpreset"]').forEach(function(radio) {
+  radio.addEventListener('change', function() {
+    if (radio.checked) {
+      soundPreset = radio.value;
+      chrome.storage.local.set({ soundPreset: soundPreset });
+      playNotifySound(true);
+    }
+  });
+});
+
+(function() {
+  var slider = document.getElementById('vol-slider');
+  var val    = document.getElementById('vol-val');
+  slider.addEventListener('input', function() {
+    soundVolume = parseInt(slider.value, 10);
+    val.textContent = soundVolume + '%';
+    chrome.storage.local.set({ soundVolume: soundVolume });
+  });
+})();
+
 
 // ─── CYCLE END OVERLAY ────────────────────────────────────────────────────────
-function showCycleNotify(cycleType) {
+function playNotifySound(isWork) {
+  if (!soundEnabled) return;
+  try {
+    var ctx = new AudioContext();
+    var preset = SOUND_PRESETS[soundPreset] || SOUND_PRESETS.classic;
+    ctx.resume().then(function() {
+      preset(ctx, isWork, soundVolume / 100);
+      setTimeout(function() { ctx.close(); }, 2000);
+    }).catch(function() { ctx.close(); });
+  } catch(e) {}
+}
+
+function showCycleNotify(cycleType, skipSound) {
+  chrome.storage.local.remove('pendingNotify');
+  chrome.action.setBadgeText({ text: '' });
+  if (!skipSound) playNotifySound(cycleType === 'work');
   var overlay   = document.getElementById('cycle-notify');
   var icon      = document.getElementById('notify-icon');
   var title     = document.getElementById('notify-title');
@@ -514,8 +661,15 @@ chrome.runtime.onMessage.addListener(function(msg) {
 document.getElementById('year-label').textContent = currentYear;
 loadLang();
 loadTheme();
-loadColorScheme(); // sets --scheme-color synchronously after storage read
-loadDurations(function() { startPolling(); });
+loadColorScheme();
+loadSoundSettings(); // sets --scheme-color synchronously after storage read
+loadDurations(function() {
+  startPolling();
+  // Show overlay if cycle ended while popup was closed
+  chrome.storage.local.get(['pendingNotify'], function(r) {
+    if (r.pendingNotify) showCycleNotify(r.pendingNotify, true);
+  });
+});
 updateTimerStats();
 
 // Wire invert checkbox
@@ -660,7 +814,7 @@ function renderHistory() {
     if (mid2) { mid2.style.background = schemeColors[3]; mid2.style.border = 'none'; }
     if (hi2)  { hi2.style.background  = schemeColors[5]; hi2.style.border  = 'none'; }
 
-    renderAnalytics();
+    renderAnalytics(history);
   });
 }
 
@@ -754,7 +908,7 @@ async function saveJsonFile(history, btnId, statusId) {
       await writable.write(content);
       await writable.close();
       if (btnId)    setSaveBtnState(btnId, 'saved', '✓ Файл сохранён');
-      if (statusId) { var s = document.getElementById(statusId); if (s) { s.textContent = 'Файл сохранён: ' + fh.name; s.className = 'status-msg ok'; } }
+      if (statusId) setFileStatus(statusId, 'Файл сохранён: ' + fh.name, 'ok');
       return;
     } catch(e) {
       // User cancelled — do nothing
@@ -772,13 +926,25 @@ async function saveJsonFile(history, btnId, statusId) {
   a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
   if (btnId)    setSaveBtnState(btnId, 'saved', '✓ Файл сохранён');
-  if (statusId) { var s2 = document.getElementById(statusId); if (s2) { s2.textContent = 'Файл скачан в папку загрузок'; s2.className = 'status-msg ok'; } }
+  if (statusId) setFileStatus(statusId, 'Файл скачан в папку загрузок', 'ok');
 }
 
 function exportData() {
   chrome.runtime.sendMessage({ type: 'GET_HISTORY' }, function(r) {
     saveJsonFile(r.history, null, null);
   });
+}
+
+function setFileStatus(statusId, text, type) {
+  var s = document.getElementById(statusId);
+  if (!s) return;
+  s.textContent = text;
+  s.className   = 'status-msg ' + type;
+  clearTimeout(setFileStatus._t);
+  setFileStatus._t = setTimeout(function() {
+    s.className   = 'status-msg';
+    s.textContent = '';
+  }, 3000);
 }
 
 function exportDataWithFeedback() {
@@ -795,10 +961,19 @@ function importData(event) {
   reader.onload = function(e) {
     try {
       var data = JSON.parse(e.target.result);
-      chrome.storage.local.set({ history: data }, function() {
+      // Rebuild timestamps from imported history counts.
+      // Approximation: spread pomodoros at 25-min intervals starting 09:00 each day.
+      var newTs = [];
+      Object.keys(data).forEach(function(dateStr) {
+        var count = parseInt(data[dateStr], 10) || 0;
+        var base  = new Date(dateStr + 'T09:00:00').getTime();
+        for (var i = 0; i < count; i++) {
+          newTs.push(base + i * 25 * 60 * 1000);
+        }
+      });
+      chrome.storage.local.set({ history: data, timestamps: newTs }, function() {
         renderHistory();
-        var s = document.getElementById('file-status') || document.getElementById('token-status');
-        if (s) { s.textContent = '✓ История загружена'; s.className = 'status-msg ok'; }
+        setFileStatus('file-status', '✓ История загружена', 'ok');
       });
     } catch(err) { alert('Ошибка при чтении файла'); }
   };
@@ -872,7 +1047,7 @@ function clearTestCycles() {
 }
 
 // ─── ANALYTICS ────────────────────────────────────────────────────────────────
-function renderAnalytics() {
+function renderAnalytics(historyFallback) {
   chrome.runtime.sendMessage({ type: 'GET_TIMESTAMPS' }, function(r) {
     var timestamps = r.timestamps || [];
     var wdCounts   = [0,0,0,0,0,0,0]; // total cycles per weekday Mon=0…Sun=6
@@ -884,15 +1059,30 @@ function renderAnalytics() {
     var cutoff  = Date.now() - 365 * 24 * 60 * 60 * 1000;
     var seenDays = {}; // track unique dates per weekday
 
-    timestamps.forEach(function(ms) {
-      if (ms < cutoff) return;
-      var d   = new Date(ms);
-      var dow = (d.getDay() + 6) % 7;
-      wdCounts[dow]++;
-      var dateKey = d.toISOString().split('T')[0];
-      if (!seenDays[dow]) seenDays[dow] = {};
-      seenDays[dow][dateKey] = true;
-    });
+    if (timestamps.length > 0) {
+      timestamps.forEach(function(ms) {
+        if (ms < cutoff) return;
+        var d   = new Date(ms);
+        var dow = (d.getDay() + 6) % 7;
+        wdCounts[dow]++;
+        var dateKey = d.toISOString().split('T')[0];
+        if (!seenDays[dow]) seenDays[dow] = {};
+        seenDays[dow][dateKey] = true;
+      });
+    } else if (historyFallback) {
+      // Fallback: compute weekday data from history dates (no timestamps available)
+      Object.keys(historyFallback).forEach(function(dateKey) {
+        var ms = new Date(dateKey + 'T12:00:00').getTime();
+        if (ms < cutoff) return;
+        var count = historyFallback[dateKey] || 0;
+        if (count <= 0) return;
+        var d   = new Date(dateKey + 'T12:00:00');
+        var dow = (d.getDay() + 6) % 7;
+        wdCounts[dow] += count;
+        if (!seenDays[dow]) seenDays[dow] = {};
+        seenDays[dow][dateKey] = true;
+      });
+    }
 
     // Count unique days per weekday
     for (var i = 0; i < 7; i++) {
@@ -918,6 +1108,8 @@ function renderAnalytics() {
     if (!barsEl) return;
     barsEl.innerHTML = '';
     var schClrs = getSchemeColors(); // [0]=empty, [1]=lightest … [5]=darkest
+    // Available height for bars: container minus fixed val label + day label + gaps (~32px)
+    var BAR_MAX_H = Math.max(20, barsEl.offsetHeight - 32);
 
     wdAvg.forEach(function(avg, i) {
       var wrap = document.createElement('div');
@@ -930,8 +1122,6 @@ function renderAnalytics() {
       var bar = document.createElement('div');
       bar.className = 'wd-bar';
       var pct = maxAvg > 0 ? avg / maxAvg : 0;
-      // Strictly linear: if max=8.6, then 4.3 = exactly 50% height
-      var BAR_MAX_H = 60;
       bar.style.height = avg === 0 ? '3px' : Math.max(3, Math.round(pct * BAR_MAX_H)) + 'px';
       // Color from scheme: map pct 0..1 to levels 1..5
       if (avg === 0) {

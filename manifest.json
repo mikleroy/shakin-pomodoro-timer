@@ -2,15 +2,12 @@
   "manifest_version": 3,
   "name": "Shakin Pomodoro Timer",
   "version": "1.1.0",
-  "description": "Pomodoro timer with heatmap history and GitHub Gist sync",
+  "description": "Pomodoro productivity timer with visual heatmap history, customizable cycle lengths, and local-only data storage. Supports English and Russian.",
   "permissions": [
     "notifications",
     "alarms",
     "storage",
-    "identity"
-  ],
-  "host_permissions": [
-    "https://api.github.com/*"
+    "offscreen"
   ],
   "background": {
     "service_worker": "background.js"
