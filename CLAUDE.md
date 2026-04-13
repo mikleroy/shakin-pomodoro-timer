@@ -4,7 +4,7 @@
 
 ## Обзор проекта
 
-Chrome Extension (Manifest V3) — таймер Помодоро с историей в виде тепловой карты и опциональной синхронизацией через GitHub Gist. Без системы сборки, без зависимостей — чистый vanilla JS/HTML/CSS, загружаемый напрямую Chrome.
+Chrome Extension (Manifest V3) — таймер Помодоро с историей в виде тепловой карты. Без системы сборки, без зависимостей — чистый vanilla JS/HTML/CSS, загружаемый напрямую Chrome.
 
 ## Установка / Запуск
 
@@ -21,7 +21,7 @@ Chrome Extension (Manifest V3) — таймер Помодоро с истори
 
 | Файл | Контекст | Роль |
 |------|---------|------|
-| `background.js` | Service Worker | Логика таймера, рендеринг иконки, alarms, синхронизация с Gist |
+| `background.js` | Service Worker | Логика таймера, рендеринг иконки, alarms |
 | `popup.js` | Страница popup | Контроллер UI, опрос состояния, тепловая карта, настройки |
 | `notify.js` | Окно уведомлений | Запрос по окончании цикла (кнопки отдыха/продолжения) |
 
@@ -39,7 +39,7 @@ popup.js отправляет START
   → chrome.alarms.create('tick', { periodInMinutes: 1 })
   → updateIcon() вызывается каждую секунду через chrome.alarms (приблизительно) + по сообщению
   → popup.js опрашивает GET_STATE каждую секунду, вычисляет remaining = workMinutes*60 - elapsed
-  → когда remaining ≤ 0: handleCycleEnd() → recordPomodoro() → syncToGist() → уведомление
+  → когда remaining ≤ 0: handleCycleEnd() → recordPomodoro() → уведомление
 ```
 
 ### Схема хранилища
@@ -51,7 +51,6 @@ chrome.storage.local:
   timestamps:   [unix_ms, ...]                  // для аналитики по дням недели
   workMinutes, breakMinutes                     // по умолчанию 25, 5
   appLang, appTheme, colorScheme, invertScheme  // настройки UI
-  githubToken, gistId                           // опциональная синхронизация с Gist
 ```
 
 ### Рендеринг иконки
@@ -78,6 +77,5 @@ CSS custom properties `--heat-0` до `--heat-5` управляют цветам
 - **Точность таймера**: и background, и popup независимо вычисляют `remaining` из метки `startedAt` через `Date.now()` — без накопления погрешности
 - **Alarms срабатывают каждую минуту**, а не каждую секунду — alarm только определяет окончание цикла; посекундные обновления приходят от опроса в popup
 - **Даты UTC**: ключи истории — `new Date().toISOString().split('T')[0]` — всегда UTC
-- **GitHub Gist sync**: перечисляет gists → находит `pomodoro-history.json` → POST (создание) или PATCH (обновление); автоматически создаёт приватный gist при первой синхронизации
 - **`fillTestHistory()`** в popup.js генерирует 4 месяца реалистичных тестовых данных — полезно для разработки UI
 - **Поток уведомлений**: системное уведомление (всегда) + оверлей в popup через `sendMessage` (только если popup открыт); окно notify.html открывается для расширенного взаимодействия
