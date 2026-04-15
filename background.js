@@ -3,12 +3,16 @@
 const DEFAULT_WORK  = 25 * 60;
 const DEFAULT_BREAK = 5  * 60;
 
+let _cachedDurations = null;
+
 async function getDurations() {
+  if (_cachedDurations) return _cachedDurations;
   const d = await chrome.storage.local.get(['workMinutes', 'breakMinutes']);
-  return {
+  _cachedDurations = {
     work:  (d.workMinutes  || 25) * 60,
     break: (d.breakMinutes || 5)  * 60
   };
+  return _cachedDurations;
 }
 
 // State stored in chrome.storage.session for cross-popup persistence
@@ -214,9 +218,20 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
 async function handleCycleEnd(state) {
   const dur = await getDurations();
+  const { autoResume } = await chrome.storage.local.get('autoResume');
 
   if (state.phase === 'work') {
     await recordPomodoro();
+
+    if (autoResume) {
+      // Auto-start break immediately, skip notification overlay
+      await setState({ phase:'break', remaining:dur.break, startedAt:Date.now(), pausedAt:null, paused:false });
+      chrome.alarms.create('tick', { periodInMinutes: 1 });
+      chrome.action.setBadgeText({ text: '' });
+      chrome.runtime.sendMessage({ type: 'CYCLE_DONE', cycleType: 'work', autoResumed: true }, function() { void chrome.runtime.lastError; });
+      return;
+    }
+
     await setState({ phase:'idle', remaining:dur.work, startedAt:null, pausedAt:null, paused:false });
     chrome.alarms.clear('tick');
 
@@ -243,6 +258,15 @@ async function handleCycleEnd(state) {
     });
 
   } else {
+    if (autoResume) {
+      // Auto-start work immediately, skip notification overlay
+      await setState({ phase:'work', remaining:dur.work, startedAt:Date.now(), pausedAt:null, paused:false });
+      chrome.alarms.create('tick', { periodInMinutes: 1 });
+      chrome.action.setBadgeText({ text: '' });
+      chrome.runtime.sendMessage({ type: 'CYCLE_DONE', cycleType: 'break', autoResumed: true }, function() { void chrome.runtime.lastError; });
+      return;
+    }
+
     await setState({ phase:'idle', remaining:dur.work, startedAt:null, pausedAt:null, paused:false });
     chrome.alarms.clear('tick');
 
@@ -337,6 +361,7 @@ async function recordPomodoro() {
 
   history[today] = (history[today] || 0) + 1;
   stamps.push(ts);
+  if (stamps.length > 2000) stamps.splice(0, stamps.length - 2000);
 
   await chrome.storage.local.set({ history, timestamps: stamps });
 }
@@ -469,6 +494,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         workMinutes:  msg.workMinutes,
         breakMinutes: msg.breakMinutes
       });
+      _cachedDurations = null; // invalidate cache
       // If timer is idle, update its remaining to reflect new work duration
       const state = await getState();
       if (state.phase === 'idle') {

@@ -6,6 +6,10 @@ const CIRCUMFERENCE = 2 * Math.PI * 90;
 var WORK_DURATION  = 25 * 60;
 var BREAK_DURATION = 5  * 60;
 
+// Track last rendered controls state to avoid unnecessary DOM rebuilds
+var lastPhase  = null;
+var lastPaused = null;
+
 function loadDurations(cb) {
   chrome.storage.local.get(['workMinutes', 'breakMinutes'], function(r) {
     WORK_DURATION  = (r.workMinutes  || 25) * 60;
@@ -82,7 +86,7 @@ var LANGS = {
     break_active: 'break', break_paused: 'pause',
     cycle_label: 'work cycle', cycle_min: 'min', break_label: 'break',
     today_lbl: 'today', per_year: 'year', per_month: 'month', per_week: 'week',
-    color_scheme: 'color scheme', less: 'less', more: 'more',
+    less: 'less', more: 'more',
     invert_lbl: 'invert: dark = more',
     calendar_heading: 'Calendar',
     analytics_title: 'activity by weekday, last 365 days (avg)',
@@ -112,6 +116,7 @@ var LANGS = {
     sound_enabled: 'sound notification',
     sound_preset: 'preset', sound_volume: 'volume',
     btn_preview_sound: '▶ test',
+    settings_automation: 'Automation', auto_resume: 'auto-resume cycles',
     preset_classic: 'Classic', preset_bell: 'Bell', preset_blip: 'Blip', preset_chime: 'Chime', preset_drop: 'Drop',
     wd_short: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
     wd_full: ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],
@@ -154,6 +159,7 @@ var LANGS = {
     sound_enabled: 'звуковое уведомление',
     sound_preset: 'пресет', sound_volume: 'громкость',
     btn_preview_sound: '▶ тест',
+    settings_automation: 'Автоматизация', auto_resume: 'авто-возобновление циклов',
     preset_classic: 'Классик', preset_bell: 'Колокол', preset_blip: 'Бип', preset_chime: 'Перезвон', preset_drop: 'Нота',
     wd_short: ['пн','вт','ср','чт','пт','сб','вс'],
     wd_full: ['понедельник','вторник','среда','четверг','пятница','суббота','воскресенье'],
@@ -339,6 +345,10 @@ function timerAction(action) {
 }
 
 function buildControls(state) {
+  if (state.phase === lastPhase && state.paused === lastPaused) return;
+  lastPhase  = state.phase;
+  lastPaused = state.paused;
+
   var controls = document.getElementById('controls');
   controls.innerHTML = '';
 
@@ -420,7 +430,6 @@ function updateTimerUI() {
     }
 
     buildControls(state);
-    updateTimerStats();
 
     // Update icon with the exact same rem — no second round-trip, no drift
     if (state.phase !== 'idle' && !state.paused && rem > 0) {
@@ -653,7 +662,10 @@ document.getElementById('notify-close').addEventListener('click', hideNotify);
 // Listen for cycle-done message from background
 chrome.runtime.onMessage.addListener(function(msg) {
   if (msg.type === 'CYCLE_DONE') {
-    showCycleNotify(msg.cycleType);
+    updateTimerStats();
+    if (!msg.autoResumed) {
+      showCycleNotify(msg.cycleType);
+    }
   }
 });
 
@@ -677,6 +689,17 @@ var invertCb = document.getElementById('scheme-invert');
 if (invertCb) {
   invertCb.addEventListener('change', function() {
     applyColorScheme(activeScheme, this.checked);
+  });
+}
+
+// Wire auto-resume checkbox
+var autoResumeCb = document.getElementById('auto-resume');
+if (autoResumeCb) {
+  chrome.storage.local.get(['autoResume'], function(r) {
+    autoResumeCb.checked = r.autoResume === true;
+  });
+  autoResumeCb.addEventListener('change', function() {
+    chrome.storage.local.set({ autoResume: this.checked });
   });
 }
 
@@ -973,6 +996,7 @@ function importData(event) {
       });
       chrome.storage.local.set({ history: data, timestamps: newTs }, function() {
         renderHistory();
+        updateTimerStats();
         setFileStatus('file-status', '✓ История загружена', 'ok');
       });
     } catch(err) { alert('Ошибка при чтении файла'); }

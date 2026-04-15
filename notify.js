@@ -49,5 +49,5 @@ document.getElementById('btn1').addEventListener('click', function() {
   sendCmd(type === 'work' ? 'START_BREAK' : 'START');
 });
 document.getElementById('btn2').addEventListener('click', function() {
-  sendCmd('START_BREAK');
+  sendCmd(type === 'work' ? 'START' : 'START_BREAK');
 });
