@@ -230,7 +230,7 @@ function applyLang() {
     if (durRows[1]) durRows[1].querySelector('.dur-label').textContent = t('break_cycle');
   }
   // Invert label
-  el = document.querySelector('.invert-label'); if (el) el.textContent = t('invert_lbl');
+  el = document.getElementById('scheme-invert-lbl'); if (el) el.textContent = t('invert_lbl');
   // Test bar
   el = document.querySelector('.test-label');   if (el) el.textContent = t('test_lbl');
   el = document.getElementById('btn-test-add'); if (el) el.textContent = t('test_add');

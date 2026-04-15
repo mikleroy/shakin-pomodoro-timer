@@ -91,11 +91,10 @@ body {
 #panel-history { padding:0; }
 #panel-history.active { display:flex; flex-direction:column; }
 
-#panel-settings.active { display:block; overflow-y:auto; max-height:555px; scrollbar-width:none; }
-#panel-settings::-webkit-scrollbar { display:none; }
+#panel-settings.active { display:block; }
 /* Settings compact layout */
-.settings-section { margin-bottom:8px; }
-.settings-title { font-size:10px; letter-spacing:0.15em; text-transform:uppercase; color:var(--text-dim); margin-bottom:8px; padding-bottom:4px; border-bottom:1px solid var(--border); }
+.settings-section { margin-bottom:5px; }
+.settings-title { font-size:10px; letter-spacing:0.15em; text-transform:uppercase; color:var(--text-dim); margin-bottom:5px; padding-bottom:4px; border-bottom:1px solid var(--border); }
 .history-top { padding:8px 16px 8px; border-bottom:1px solid var(--border); }
 .history-top::-webkit-scrollbar { width:4px; }
 .history-top::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
@@ -211,12 +210,12 @@ body.theme-light .day-cell.day-has-work .day-num { color:rgba(0,0,0,0.72); font-
 .cycle-notify-msg { font-size:11px; color:var(--text-dim); text-align:center; margin-bottom:16px; line-height:1.5; }
 .cycle-notify-btns { display:flex; gap:8px; }
 .cycle-notify-btns .btn { flex:1; font-size:10px; padding:9px 8px; }
-.settings-btn-row { display:flex; gap:0; margin-bottom:8px; border:1px solid var(--border); border-radius:3px; overflow:hidden; }
+.settings-btn-row { display:flex; gap:0; margin-bottom:5px; border:1px solid var(--border); border-radius:3px; overflow:hidden; }
 .settings-btn-row .theme-opt { flex:1; }
 .settings-btn-row .theme-opt input[type="radio"] { position:absolute; opacity:0; width:0; height:0; }
 .settings-btn-row .theme-opt label {
   display:flex; align-items:center; justify-content:center;
-  width:100%; padding:8px 6px; border:none; border-right:1px solid var(--border);
+  width:100%; padding:6px 6px; border:none; border-right:1px solid var(--border);
   background:var(--surface); color:var(--text-dim); font-family:inherit;
   font-size:11px; cursor:pointer; transition:all 0.15s; letter-spacing:0.06em;
 }
@@ -242,13 +241,14 @@ body.theme-light .day-cell.day-has-work .day-num { color:rgba(0,0,0,0.72); font-
 .settings-hint { font-size:10px; color:var(--text-muted); margin-top:4px; line-height:1.5; }
 .settings-hint a { color:var(--accent); text-decoration:none; }
 .settings-hint a:hover { text-decoration:underline; }
-.storage-msg-area { margin-bottom:8px; }
+.storage-msg-area { margin-bottom:4px; }
 .status-msg { font-size:10px; padding:6px 10px; border-radius:3px; margin-top:8px; display:none; }
 .status-msg.ok  { background:rgba(76,175,125,0.1); color:var(--green); border:1px solid rgba(76,175,125,0.2); display:block; }
 .status-msg.err { background:rgba(232,120,32,0.1); color:var(--accent); border:1px solid rgba(232,120,32,0.2); display:block; }
-.btn-full { width:100%; margin-top:4px; }
+.btn-full { width:100%; margin-top:2px; padding-top:7px; padding-bottom:7px; }
 /* INVERT TOGGLE */
-.invert-row { display:flex; align-items:center; gap:8px; cursor:pointer; margin-top:7px; margin-bottom:2px; }
+.invert-row { display:flex; align-items:center; gap:8px; cursor:pointer; margin-top:4px; margin-bottom:2px; }
+.auto-resume-row { justify-content:center; margin-bottom:10px; margin-top:0; }
 .invert-row input[type="checkbox"] { position:absolute; opacity:0; width:0; height:0; }
 .invert-track { width:30px; height:16px; background:var(--border); border-radius:8px; position:relative; transition:background 0.2s; flex-shrink:0; }
 .invert-thumb { position:absolute; top:2px; left:2px; width:12px; height:12px; background:var(--text-muted); border-radius:50%; transition:transform 0.2s, background 0.2s; }
@@ -258,7 +258,7 @@ body.theme-light .day-cell.day-has-work .day-num { color:rgba(0,0,0,0.72); font-
 .invert-row:hover .invert-label { color:var(--text); }
 
 /* DURATION SLIDERS */
-.dur-row { margin-bottom:3px; }
+.dur-row { margin-bottom:1px; }
 .dur-label-row { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px; }
 .dur-label { font-size:11px; color:var(--text-dim); }
 .dur-val { font-size:14px; font-weight:500; color:var(--scheme-color, var(--accent)); }
@@ -266,10 +266,10 @@ body.theme-light .day-cell.day-has-work .day-num { color:rgba(0,0,0,0.72); font-
 .dur-slider::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:var(--scheme-color, var(--accent)); cursor:pointer; border:2px solid var(--bg); transition:transform 0.15s; }
 .dur-slider::-webkit-slider-thumb:hover { transform:scale(1.2); }
 .dur-slider::-moz-range-thumb { width:16px; height:16px; border-radius:50%; background:var(--scheme-color, var(--accent)); cursor:pointer; border:2px solid var(--bg); }
-.dur-ticks { display:flex; justify-content:space-between; font-size:8px; color:var(--text-muted); padding:0 1px; }
+.dur-ticks { display:flex; justify-content:space-between; font-size:8px; color:var(--text-muted); padding:0 1px; margin-top:1px; margin-bottom:1px; }
 /* SOUND SETTINGS */
-.sound-preset-lbl { font-size:10px; color:var(--text-muted); margin-top:8px; margin-bottom:4px; }
-#sound-options { margin-top:6px; }
+.sound-preset-lbl { font-size:10px; color:var(--text-muted); margin-top:4px; margin-bottom:2px; }
+#sound-options { margin-top:3px; }
 /* AUTHOR FOOTER */
 .author-footer { padding:4px 0 2px; text-align:center; font-size:10px; color:var(--text-muted); }
 .author-footer a { color:var(--text-muted); text-decoration:none; border-bottom:1px solid var(--border); padding-bottom:1px; transition:color 0.15s; }
@@ -307,6 +307,11 @@ body.theme-light .day-cell.day-has-work .day-num { color:rgba(0,0,0,0.72); font-
     </div>
   </div>
   <div class="controls" id="controls"></div>
+  <label class="invert-row auto-resume-row">
+    <input type="checkbox" id="auto-resume">
+    <span class="invert-track"><span class="invert-thumb"></span></span>
+    <span class="invert-label" data-i18n="auto_resume">auto-resume cycles</span>
+  </label>
   <div class="timer-stats">
     <div class="ts-box"><div class="ts-val" id="ts-year">0</div><div class="ts-lbl">year</div></div>
     <div class="ts-box"><div class="ts-val" id="ts-month">0</div><div class="ts-lbl">month</div></div>
@@ -357,7 +362,7 @@ body.theme-light .day-cell.day-has-work .day-num { color:rgba(0,0,0,0.72); font-
       <label class="invert-row">
         <input type="checkbox" id="scheme-invert">
         <span class="invert-track"><span class="invert-thumb"></span></span>
-        <span class="invert-label">invert: dark = more</span>
+        <span class="invert-label" id="scheme-invert-lbl">invert: dark = more</span>
       </label>
       <div class="legend">
         <span class="legend-label" data-i18n="less">less</span>
@@ -456,15 +461,7 @@ body.theme-light .day-cell.day-has-work .day-num { color:rgba(0,0,0,0.72); font-
     </div>
     <button class="btn primary btn-full" id="btn-save-durations">Apply</button>
   </div>
-  <div class="settings-section" id="section-automation">
-    <div class="settings-title" data-i18n="settings_automation">Automation</div>
-    <label class="invert-row">
-      <input type="checkbox" id="auto-resume">
-      <span class="invert-track"><span class="invert-thumb"></span></span>
-      <span class="invert-label" data-i18n="auto_resume">auto-resume cycles</span>
-    </label>
-  </div>
-  <div class="settings-section" id="storage-file">
+<div class="settings-section" id="storage-file">
     <div class="settings-title" data-i18n="settings_storage">Where to store history</div>
     <div class="storage-msg-area">
       <div class="settings-hint" data-i18n="hint_file" style="line-height:1.5;">History is stored in the browser. Please save backups regularly.</div>
