@@ -224,10 +224,11 @@ async function handleCycleEnd(state) {
     await recordPomodoro();
 
     if (autoResume) {
-      // Auto-start break immediately, skip notification overlay
-      await setState({ phase:'break', remaining:dur.break, startedAt:Date.now(), pausedAt:null, paused:false });
+      // Auto-start another work cycle immediately, skip notification overlay
+      await setState({ phase:'work', remaining:dur.work, startedAt:Date.now(), pausedAt:null, paused:false });
       chrome.alarms.create('tick', { periodInMinutes: 1 });
       chrome.action.setBadgeText({ text: '' });
+      playSound(true);
       chrome.runtime.sendMessage({ type: 'CYCLE_DONE', cycleType: 'work', autoResumed: true }, function() { void chrome.runtime.lastError; });
       return;
     }
@@ -259,10 +260,11 @@ async function handleCycleEnd(state) {
 
   } else {
     if (autoResume) {
-      // Auto-start work immediately, skip notification overlay
-      await setState({ phase:'work', remaining:dur.work, startedAt:Date.now(), pausedAt:null, paused:false });
+      // Auto-start another break immediately, skip notification overlay
+      await setState({ phase:'break', remaining:dur.break, startedAt:Date.now(), pausedAt:null, paused:false });
       chrome.alarms.create('tick', { periodInMinutes: 1 });
       chrome.action.setBadgeText({ text: '' });
+      playSound(false);
       chrome.runtime.sendMessage({ type: 'CYCLE_DONE', cycleType: 'break', autoResumed: true }, function() { void chrome.runtime.lastError; });
       return;
     }

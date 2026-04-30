@@ -42,10 +42,14 @@ function applyColorScheme(scheme, invert) {
   activeScheme = scheme;
   if (invert !== undefined) invertScheme = invert;
   var colors = getSchemeColors();
+  var base = COLOR_SCHEMES[activeScheme].vars;
   colors.forEach(function(c, i) { document.documentElement.style.setProperty('--heat-' + i, c); });
   // Set scheme-color = brightest active color (level 1 = lightest in normal, or level 5 inverted)
   document.documentElement.style.setProperty('--scheme-color', colors[1]);
   document.documentElement.style.setProperty('--scheme-color-dim', colors[3]);
+  // Ring color always uses non-inverted brightest color, unaffected by invert toggle
+  document.documentElement.style.setProperty('--ring-color', base[1]);
+  document.documentElement.style.setProperty('--ring-color-dim', base[2]);
 
   // Legend: 3 cells — lo (min), mid, hi (max)
   var lo  = document.getElementById('leg-lo');

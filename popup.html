@@ -65,10 +65,11 @@ body {
 .timer-ring-wrap { display:flex; justify-content:center; align-items:center; margin:8px auto 16px; position:relative; width:190px; height:190px; }
 .timer-ring { position:absolute; top:0; left:0; width:190px; height:190px; transform:rotate(-90deg); }
 .ring-bg { fill:none; stroke:var(--surface2); stroke-width:3; }
-.ring-progress { fill:none; stroke:var(--scheme-color, var(--accent)); stroke-width:3; stroke-linecap:round; stroke-dasharray:565.49; stroke-dashoffset:0; transition:stroke-dashoffset 1s linear, stroke 0.5s; }
-.ring-progress.break-mode { stroke:var(--scheme-color-dim, rgba(232,120,32,0.4)); }
+.ring-progress { fill:none; stroke:var(--ring-color, var(--accent)); stroke-width:3; stroke-linecap:round; stroke-dasharray:565.49; stroke-dashoffset:0; transition:stroke-dashoffset 1s linear, stroke 0.5s; }
+.ring-progress.break-mode { stroke:var(--ring-color-dim, rgba(232,120,32,0.4)); opacity:0.7; }
 .timer-display { position:relative; text-align:center; z-index:1; }
-.timer-time { font-size:50px; font-weight:200; letter-spacing:-2px; line-height:1; color:var(--text); font-variant-numeric:tabular-nums; }
+.timer-time { font-size:50px; font-weight:400; letter-spacing:-2px; line-height:1; color:#ffffff; font-variant-numeric:tabular-nums; }
+body.theme-light .timer-time { color:#1a1917; }
 .timer-phase-sub { font-size:10px; letter-spacing:0.15em; text-transform:uppercase; color:var(--text-muted); margin-top:6px; }
 .controls { display:flex; gap:10px; justify-content:center; margin-bottom:16px; }
 .btn { font-family:inherit; font-size:11px; letter-spacing:0.1em; text-transform:uppercase; border:1px solid var(--border); background:var(--surface); color:var(--text-dim); padding:10px 20px; cursor:pointer; transition:all 0.15s; border-radius:3px; }
@@ -224,13 +225,13 @@ body.theme-light .day-cell.day-has-work .day-num { color:rgba(0,0,0,0.72); font-
 .settings-btn-row .theme-opt label:hover { color:var(--text); background:var(--surface2); }
 
 .settings-action-btn {
-  flex:1; font-family:inherit; font-size:11px; letter-spacing:0.06em;
+  flex:1; font-family:inherit; font-size:11px; letter-spacing:0.08em; text-transform:uppercase;
   border:1px solid var(--border); border-radius:3px; background:var(--surface);
-  color:var(--text-dim); padding:8px 6px; cursor:pointer; transition:all 0.15s;
+  color:var(--text-dim); padding:9px 6px; cursor:pointer; transition:all 0.15s;
 }
 .settings-action-btn:hover { color:var(--text); border-color:var(--text-muted); }
-.settings-action-btn.primary { background:var(--scheme-color, var(--accent)); border-color:var(--scheme-color, var(--accent)); color:#fff; }
-.settings-action-btn.primary:hover { opacity:0.88; }
+.settings-action-btn.primary { background:transparent; border-color:var(--ring-color, var(--accent)); color:var(--ring-color, var(--accent)); }
+.settings-action-btn.primary:hover { background:var(--ring-color, var(--accent)); color:#fff; }
 .settings-action-row { display:flex; gap:8px; }
 
 .settings-row { margin-bottom:10px; }
@@ -245,7 +246,7 @@ body.theme-light .day-cell.day-has-work .day-num { color:rgba(0,0,0,0.72); font-
 .status-msg { font-size:10px; padding:6px 10px; border-radius:3px; margin-top:8px; display:none; }
 .status-msg.ok  { background:rgba(76,175,125,0.1); color:var(--green); border:1px solid rgba(76,175,125,0.2); display:block; }
 .status-msg.err { background:rgba(232,120,32,0.1); color:var(--accent); border:1px solid rgba(232,120,32,0.2); display:block; }
-.btn-full { width:100%; margin-top:2px; padding-top:7px; padding-bottom:7px; }
+.btn-full { width:100%; margin-top:2px; }
 /* INVERT TOGGLE */
 .invert-row { display:flex; align-items:center; gap:8px; cursor:pointer; margin-top:4px; margin-bottom:2px; }
 .auto-resume-row { justify-content:center; margin-bottom:10px; margin-top:0; }
@@ -459,7 +460,7 @@ body.theme-light .day-cell.day-has-work .day-num { color:rgba(0,0,0,0.72); font-
       <input type="range" class="dur-slider" id="break-slider" min="1" max="60" step="1" value="5">
       <div class="dur-ticks"><span>1</span><span>10</span><span>20</span><span>40</span><span>60</span></div>
     </div>
-    <button class="btn primary btn-full" id="btn-save-durations">Apply</button>
+    <button class="settings-action-btn primary btn-full" id="btn-save-durations">Apply</button>
   </div>
 <div class="settings-section" id="storage-file">
     <div class="settings-title" data-i18n="settings_storage">Where to store history</div>
