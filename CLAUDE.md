@@ -27,7 +27,7 @@ Chrome Extension (Manifest V3) — таймер Помодоро с истори
 
 ### Коммуникация между контекстами
 
-- `popup.js` → `background.js`: `chrome.runtime.sendMessage({ cmd: 'START' | 'PAUSE' | 'RESUME' | 'RESET' | 'GET_STATE' | ... })`
+- `popup.js` → `background.js`: `chrome.runtime.sendMessage({ type: 'START' | 'PAUSE' | 'RESUME' | 'RESET' | 'GET_STATE' | ... })`
 - `background.js` → `popup.js`: ответ на `GET_STATE` + `chrome.runtime.sendMessage` для оверлея по окончании цикла
 - `notify.js` ↔ `background.js`: через `chrome.storage.local` (ключ `pendingCmd`) + слушатель `chrome.storage.onChanged`
 
@@ -50,7 +50,8 @@ chrome.storage.local:
   history:      { "YYYY-MM-DD": count, ... }   // даты UTC
   timestamps:   [unix_ms, ...]                  // для аналитики по дням недели
   workMinutes, breakMinutes                     // по умолчанию 25, 5
-  appLang, appTheme, colorScheme, invertScheme  // настройки UI
+  appLang, appTheme, colorScheme               // настройки UI
+  autoResume, soundEnabled, soundPreset, soundVolume
 ```
 
 ### Рендеринг иконки
@@ -70,26 +71,33 @@ chrome.storage.local:
 2 = 2–3 помодоро   5 = 9+ помодоро
 ```
 
-CSS custom properties `--heat-0` до `--heat-5` управляют цветами по схеме (green/orange/red/ocean) с опциональной инверсией.
+CSS custom properties `--heat-0` до `--heat-5` управляют цветами по схеме (green/orange/red/ocean).
 
 ### CSS-переменные цвета (popup.html / applyColorScheme)
 
 | Переменная | Назначение |
 |---|---|
-| `--scheme-color` | Основной акцент UI — меняется при инвертировании (brightest level) |
-| `--scheme-color-dim` | Приглушённый акцент — тоже меняется при инвертировании |
-| `--ring-color` | Цвет кольца таймера — **не меняется** при инвертировании, всегда `base[1]` |
-| `--ring-color-dim` | Цвет кольца в режиме перерыва — тоже фиксирован |
-| `--heat-0..5` | Цвета тепловой карты — меняются при инвертировании |
+| `--scheme-color` | Основной акцент UI (brightest level, `base[1]`) |
+| `--scheme-color-dim` | Приглушённый акцент (`base[3]`) |
+| `--ring-color` | Цвет кольца таймера — всегда `base[1]` |
+| `--ring-color-dim` | Цвет кольца в режиме перерыва — `base[2]` |
+| `--heat-0..5` | Цвета тепловой карты |
 
-Кнопки действий в настройках (Применить, Сохранить файл, Загрузить файл) используют `.settings-action-btn` и берут цвет из `--ring-color`, чтобы инвертирование не влияло на их читаемость.
+Цвета берутся напрямую из `COLOR_SCHEMES[activeScheme].vars` — функция `getSchemeColors()` удалена вместе с функцией инвертирования.
+
+### Кнопки в настройках
+
+Все action-кнопки (Применить, Сохранить файл, Загрузить файл) используют единый стиль `.settings-action-btn` — outlined, без выделения primary. Класс `.settings-action-btn.primary` в CSS сохранён, но не используется.
+
+Тогловые элементы (авто-возобновление, звук) используют классы `.invert-row` / `.invert-track` / `.invert-thumb` / `.invert-label` — это общие стили для всех toggle-строк в настройках, не связанные с инвертированием цветов.
 
 ## Ключевые особенности реализации
 
 - **Точность таймера**: и background, и popup независимо вычисляют `remaining` из метки `startedAt` через `Date.now()` — без накопления погрешности
 - **Alarms срабатывают каждую минуту**, а не каждую секунду — alarm только определяет окончание цикла; посекундные обновления приходят от опроса в popup
 - **Даты UTC**: ключи истории — `new Date().toISOString().split('T')[0]` — всегда UTC
-- **`fillTestHistory()`** в popup.js генерирует 4 месяца реалистичных тестовых данных — полезно для разработки UI
+- **`fillTestHistory()`** в popup.js генерирует ~4 месяца реалистичных тестовых данных — полезно для разработки UI
 - **Поток уведомлений**: системное уведомление (всегда) + оверлей в popup через `sendMessage` (только если popup открыт); окно notify.html открывается для расширенного взаимодействия
-- **Авто-возобновление** (`autoResume` в chrome.storage.local): каждый тип цикла возобновляет **сам себя** — рабочий цикл → рабочий цикл, перерыв → перерыв. Без чередования. При авто-возобновлении `playSound()` вызывается напрямую из background (через offscreen API), независимо от того открыт ли popup. Если звук отключён (`soundEnabled: false`), `playSound()` выходит без звука.
+- **Авто-возобновление** (`autoResume`): каждый тип цикла возобновляет сам себя — рабочий → рабочий, перерыв → перерыв. При авто-возобновлении `playSound()` вызывается напрямую из background через offscreen API
 - **Цифры таймера**: `font-weight:400`, цвет `#ffffff` (dark) / `#1a1917` (light) — жёстко задан, не зависит от цветовой схемы
+- **Защита от падения renderHistory/renderAnalytics**: если service worker не ответил (`r === undefined`), функции повторяют вызов через 200 мс

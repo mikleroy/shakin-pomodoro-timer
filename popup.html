@@ -128,7 +128,6 @@ body.theme-light .timer-time { color:#1a1917; }
 .history-scheme { padding:8px 16px 6px; border-bottom:1px solid var(--border); flex-shrink:0; margin-bottom:8px; }
 .history-scheme-title { margin-bottom:8px; }
 .history-scheme-footer { display:flex; align-items:center; justify-content:space-between; margin-top:5px; }
-.history-scheme-footer .invert-row { margin-top:0; margin-bottom:0; }
 .history-scheme-footer .legend { margin-top:0; }
 
 /* ADAPTIVE HISTORY: compact paddings when analytics block visible */
@@ -247,7 +246,6 @@ body.theme-light .day-cell.day-has-work .day-num { color:rgba(0,0,0,0.72); font-
 .status-msg.ok  { background:rgba(76,175,125,0.1); color:var(--green); border:1px solid rgba(76,175,125,0.2); display:block; }
 .status-msg.err { background:rgba(232,120,32,0.1); color:var(--accent); border:1px solid rgba(232,120,32,0.2); display:block; }
 .btn-full { width:100%; margin-top:2px; }
-/* INVERT TOGGLE */
 .invert-row { display:flex; align-items:center; gap:8px; cursor:pointer; margin-top:4px; margin-bottom:2px; }
 .auto-resume-row { justify-content:center; margin-bottom:10px; margin-top:0; }
 .invert-row input[type="checkbox"] { position:absolute; opacity:0; width:0; height:0; }
@@ -360,11 +358,6 @@ body.theme-light .day-cell.day-has-work .day-num { color:rgba(0,0,0,0.72); font-
       </div>
     </div>
     <div class="history-scheme-footer">
-      <label class="invert-row">
-        <input type="checkbox" id="scheme-invert">
-        <span class="invert-track"><span class="invert-thumb"></span></span>
-        <span class="invert-label" id="scheme-invert-lbl">invert: dark = more</span>
-      </label>
       <div class="legend">
         <span class="legend-label" data-i18n="less">less</span>
         <div class="legend-cell" id="leg-lo"></div>
@@ -460,7 +453,7 @@ body.theme-light .day-cell.day-has-work .day-num { color:rgba(0,0,0,0.72); font-
       <input type="range" class="dur-slider" id="break-slider" min="1" max="60" step="1" value="5">
       <div class="dur-ticks"><span>1</span><span>10</span><span>20</span><span>40</span><span>60</span></div>
     </div>
-    <button class="settings-action-btn primary btn-full" id="btn-save-durations">Apply</button>
+    <button class="settings-action-btn btn-full" id="btn-save-durations">Apply</button>
   </div>
 <div class="settings-section" id="storage-file">
     <div class="settings-title" data-i18n="settings_storage">Where to store history</div>
@@ -469,7 +462,7 @@ body.theme-light .day-cell.day-has-work .day-num { color:rgba(0,0,0,0.72); font-
       <div class="status-msg" id="file-status"></div>
     </div>
     <div class="settings-btn-row">
-      <button class="settings-action-btn primary" id="btn-export-file">Save file</button>
+      <button class="settings-action-btn" id="btn-export-file">Save file</button>
       <button class="settings-action-btn" id="btn-import-file2">Load file</button>
     </div>
     <input type="file" id="import-file2" accept=".json" style="display:none">

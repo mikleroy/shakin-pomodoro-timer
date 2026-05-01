@@ -29,25 +29,15 @@ const COLOR_SCHEMES = {
   ocean:   { vars: ['#1a1916','#40d4ff','#0ea4d8','#0e72aa','#0e4a72','#0d2a3d'] }
 };
 var activeScheme = 'green';
-var invertScheme = false;
 
-function getSchemeColors() {
-  var base = COLOR_SCHEMES[activeScheme].vars;
-  if (!invertScheme) return base;
-  // Keep index 0 (empty cell background) fixed, invert levels 1-5
-  return [base[0], base[5], base[4], base[3], base[2], base[1]];
-}
-
-function applyColorScheme(scheme, invert) {
+function applyColorScheme(scheme) {
   activeScheme = scheme;
-  if (invert !== undefined) invertScheme = invert;
-  var colors = getSchemeColors();
-  var base = COLOR_SCHEMES[activeScheme].vars;
+  var colors = COLOR_SCHEMES[activeScheme].vars;
+  var base = colors;
   colors.forEach(function(c, i) { document.documentElement.style.setProperty('--heat-' + i, c); });
   // Set scheme-color = brightest active color (level 1 = lightest in normal, or level 5 inverted)
   document.documentElement.style.setProperty('--scheme-color', colors[1]);
   document.documentElement.style.setProperty('--scheme-color-dim', colors[3]);
-  // Ring color always uses non-inverted brightest color, unaffected by invert toggle
   document.documentElement.style.setProperty('--ring-color', base[1]);
   document.documentElement.style.setProperty('--ring-color-dim', base[2]);
 
@@ -60,17 +50,14 @@ function applyColorScheme(scheme, invert) {
   if (hi)  { hi.style.background  = colors[5]; hi.style.border  = 'none'; }
 
   if (document.getElementById('panel-history').classList.contains('active')) renderHistory();
-  chrome.storage.local.set({ colorScheme: scheme, invertScheme: invertScheme });
+  chrome.storage.local.set({ colorScheme: scheme });
 }
 
 function loadColorScheme() {
-  chrome.storage.local.get(['colorScheme', 'invertScheme'], function(r) {
+  chrome.storage.local.get(['colorScheme'], function(r) {
     var scheme = r.colorScheme || 'green';
-    invertScheme = r.invertScheme || false;
     var radio = document.getElementById('scheme-' + scheme);
     if (radio) radio.checked = true;
-    var cb = document.getElementById('scheme-invert');
-    if (cb) cb.checked = invertScheme;
     applyColorScheme(scheme);
   });
 }
@@ -91,7 +78,6 @@ var LANGS = {
     cycle_label: 'work cycle', cycle_min: 'min', break_label: 'break',
     today_lbl: 'today', per_year: 'year', per_month: 'month', per_week: 'week',
     less: 'less', more: 'more',
-    invert_lbl: 'invert: dark = more',
     calendar_heading: 'Calendar',
     analytics_title: 'activity by weekday, last 365 days (avg)',
     year_nav_sync: '↓ sync',
@@ -135,7 +121,6 @@ var LANGS = {
     cycle_label: 'рабочий цикл', cycle_min: 'мин', break_label: 'перерыв',
     today_lbl: 'сегодня', per_year: 'за год', per_month: 'за месяц', per_week: 'за неделю',
     color_scheme: 'цветовая гамма', less: 'меньше', more: 'больше',
-    invert_lbl: 'инвертировать: тёмный = больше',
     calendar_heading: 'Календарь',
     analytics_title: 'активность по дням недели за год (среднее)',
     year_nav_sync: '↓ обновить',
@@ -233,8 +218,6 @@ function applyLang() {
     if (durRows[0]) durRows[0].querySelector('.dur-label').textContent = t('work_cycle');
     if (durRows[1]) durRows[1].querySelector('.dur-label').textContent = t('break_cycle');
   }
-  // Invert label
-  el = document.getElementById('scheme-invert-lbl'); if (el) el.textContent = t('invert_lbl');
   // Test bar
   el = document.querySelector('.test-label');   if (el) el.textContent = t('test_lbl');
   el = document.getElementById('btn-test-add'); if (el) el.textContent = t('test_add');
@@ -688,14 +671,6 @@ loadDurations(function() {
 });
 updateTimerStats();
 
-// Wire invert checkbox
-var invertCb = document.getElementById('scheme-invert');
-if (invertCb) {
-  invertCb.addEventListener('change', function() {
-    applyColorScheme(activeScheme, this.checked);
-  });
-}
-
 // Wire auto-resume checkbox
 var autoResumeCb = document.getElementById('auto-resume');
 if (autoResumeCb) {
@@ -733,10 +708,11 @@ function getHeatLevel(n) {
   if (n <= 8) return 4;
   return 5;
 }
-function getHeatColor(level) { return getSchemeColors()[level]; }
+function getHeatColor(level) { return COLOR_SCHEMES[activeScheme].vars[level]; }
 
 function renderHistory() {
   chrome.runtime.sendMessage({ type: 'GET_HISTORY' }, function(r) {
+    if (!r) { setTimeout(renderHistory, 200); return; }
     var history    = r.history || {};
     var year       = currentYear;
     var now        = new Date();
@@ -833,7 +809,7 @@ function renderHistory() {
     }
     grid.appendChild(daysEl);
 
-    var schemeColors = getSchemeColors();
+    var schemeColors = COLOR_SCHEMES[activeScheme].vars;
     var lo2  = document.getElementById('leg-lo');
     var mid2 = document.getElementById('leg-mid');
     var hi2  = document.getElementById('leg-hi');
@@ -1077,6 +1053,7 @@ function clearTestCycles() {
 // ─── ANALYTICS ────────────────────────────────────────────────────────────────
 function renderAnalytics(historyFallback) {
   chrome.runtime.sendMessage({ type: 'GET_TIMESTAMPS' }, function(r) {
+    if (!r) { setTimeout(function() { renderAnalytics(historyFallback); }, 200); return; }
     var timestamps = r.timestamps || [];
     var wdCounts   = [0,0,0,0,0,0,0]; // total cycles per weekday Mon=0…Sun=6
     var wdDays     = [0,0,0,0,0,0,0]; // number of unique days per weekday
@@ -1135,7 +1112,7 @@ function renderAnalytics(historyFallback) {
     var barsEl = document.getElementById('wd-bars');
     if (!barsEl) return;
     barsEl.innerHTML = '';
-    var schClrs = getSchemeColors(); // [0]=empty, [1]=lightest … [5]=darkest
+    var schClrs = COLOR_SCHEMES[activeScheme].vars; // [0]=empty, [1]=lightest … [5]=darkest
     // Available height for bars: container minus fixed val label + day label + gaps (~32px)
     var BAR_MAX_H = Math.max(20, barsEl.offsetHeight - 32);
 

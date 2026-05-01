@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Shakin Pomodoro Timer",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Pomodoro productivity timer with visual heatmap history, customizable cycle lengths, local-only storage. English & Russian.",
   "permissions": [
     "notifications",
